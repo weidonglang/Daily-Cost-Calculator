@@ -1,0 +1,51 @@
+# Build outputs
+/target/
+/out/
+/bin/
+/dist/
+/dist-app/
+/dist-msi/
+/tmp-jpackage-*/
+
+# Packaged binaries and archives
+*.exe
+*.msi
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# Local packaging tools
+/tools/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+hs_err_pid*
+replay_pid*
+
+# IDE files
+/.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local application data / backups
+data.json
+*.backup.json
+*.csv
+
+# Maven wrapper should stay tracked if added later
+!.mvn/wrapper/maven-wrapper.jar

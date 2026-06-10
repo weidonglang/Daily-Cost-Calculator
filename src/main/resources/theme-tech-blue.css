@@ -1,0 +1,10 @@
+.root {
+    -app-header-background: #082F49;
+    -app-primary: #22D3EE;
+    -app-accent: #60A5FA;
+    -app-background: #031525;
+    -app-surface: #0B2A3F;
+    -app-border: #0EA5E9;
+    -app-text: #E0F2FE;
+    -app-text-muted: #7DD3FC;
+}
