@@ -226,6 +226,7 @@ public class MainView {
         aiAnalysis.setPromptText("点击 AI 辅助分析后显示本地 qwen3:8b 生成的分析。");
         aiAnalysis.setWrapText(true);
         aiAnalysis.setPrefRowCount(12);
+        aiAnalysis.setText(lastAiAnalysisText());
         ollamaEndpoint.setPrefWidth(240);
         ollamaModel.setPrefWidth(130);
 
@@ -393,6 +394,12 @@ public class MainView {
                 plainStat("配件投入占比", accessoryInvestmentRatio(summary)),
                 plainStat("30天自然下降", FormatUtil.yuanPerDay(totalThirtyDayDecrease(summary))),
                 plainStat("365天预测日均", FormatUtil.yuanPerDay(projectedPortfolioDaily(summary, 365)))
+        );
+        cards.getChildren().addAll(
+                plainStat("较昨天变化", historicalChangeText(1)),
+                plainStat("较3天前变化", historicalChangeText(3)),
+                plainStat("较7天前变化", historicalChangeText(7)),
+                plainStat("较30天前变化", historicalChangeText(30))
         );
         cards.setPrefColumns(3);
 
@@ -730,6 +737,7 @@ public class MainView {
         NumberAxis xAxis = new NumberAxis();
         CategoryAxis yAxis = new CategoryAxis();
         BarChart<Number, String> chart = new BarChart<>(xAxis, yAxis);
+        styleChart(chart);
         chart.setLegendVisible(false);
         XYChart.Series<Number, String> series = new XYChart.Series<>();
         devices.stream().sorted(Comparator.comparing(DeviceCostSnapshot::currentDailyCost).reversed()).forEach(snapshot ->
@@ -741,6 +749,7 @@ public class MainView {
 
     private PieChart investmentPieChart(List<DeviceCostSnapshot> devices) {
         PieChart chart = new PieChart();
+        styleChart(chart);
         BigDecimal totalInvestment = devices.stream()
                 .map(DeviceCostSnapshot::totalInvestment)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -759,6 +768,7 @@ public class MainView {
         NumberAxis xAxis = new NumberAxis();
         CategoryAxis yAxis = new CategoryAxis();
         BarChart<Number, String> chart = new BarChart<>(xAxis, yAxis);
+        styleChart(chart);
         chart.setLegendVisible(false);
         XYChart.Series<Number, String> series = new XYChart.Series<>();
         devices.forEach(snapshot -> series.getData().add(new XYChart.Data<>(snapshot.targetPlan().remainingDays().doubleValue(), snapshot.name())));
@@ -773,6 +783,7 @@ public class MainView {
         xAxis.setLabel("未来天数");
         yAxis.setLabel("日均成本");
         LineChart<Number, Number> chart = new LineChart<>(xAxis, yAxis);
+        styleChart(chart);
         chart.setLegendVisible(true);
         int[] days = {0, 30, 60, 90, 180, 270, 365};
         for (DeviceCostSnapshot device : devices) {
@@ -803,6 +814,10 @@ public class MainView {
         VBox box = new VBox(8, titleLabel(title), chart);
         box.getStyleClass().add("device-card");
         return box;
+    }
+
+    private void styleChart(Node chart) {
+        chart.setStyle("-fx-text-fill: -app-text;");
     }
 
     private void showTextImportDialog(String preset) {
@@ -932,7 +947,16 @@ public class MainView {
             }
         };
         task.setOnSucceeded(event -> {
-            aiAnalysis.setText(formatAiOutput(task.getValue()));
+            String result = formatAiOutput(task.getValue());
+            String timestamp = FormatUtil.date(LocalDate.now()) + " " + java.time.LocalTime.now().withNano(0);
+            appData.getSettings().setLastAiAnalysis(result);
+            appData.getSettings().setLastAiAnalysisAt(timestamp);
+            try {
+                dataStore.save(appData);
+            } catch (StorageException e) {
+                showError("保存 AI 分析失败", e.getMessage());
+            }
+            aiAnalysis.setText(lastAiAnalysisText());
             button.setDisable(false);
         });
         task.setOnFailed(event -> {
@@ -950,6 +974,18 @@ public class MainView {
         ClipboardContent content = new ClipboardContent();
         content.putString(text == null ? "" : text);
         Clipboard.getSystemClipboard().setContent(content);
+    }
+
+    private String lastAiAnalysisText() {
+        String text = appData.getSettings().getLastAiAnalysis();
+        if (text.isBlank()) {
+            return "";
+        }
+        String time = appData.getSettings().getLastAiAnalysisAt();
+        return (time.isBlank() ? "上次 AI 分析" : "上次 AI 分析：" + time)
+                + System.lineSeparator()
+                + System.lineSeparator()
+                + text;
     }
 
     private String formatAiOutput(String text) {
@@ -1018,6 +1054,15 @@ public class MainView {
         return summary.devices().stream()
                 .map(device -> projectedDeviceDaily(device, extraDays))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private String historicalChangeText(int daysAgo) {
+        LocalDate date = LocalDate.now().minusDays(daysAgo);
+        SummarySnapshot past = calculatorService.calculateSummary(appData, date);
+        SummarySnapshot current = calculatorService.calculateSummary(appData, LocalDate.now());
+        BigDecimal diff = current.totalDailyCost().subtract(past.totalDailyCost());
+        String prefix = diff.compareTo(BigDecimal.ZERO) > 0 ? "+" : "";
+        return prefix + FormatUtil.yuanPerDay(diff) + " / " + percent(diff.abs(), past.totalDailyCost());
     }
 
     private BigDecimal projectedDeviceDaily(DeviceCostSnapshot device, int extraDays) {

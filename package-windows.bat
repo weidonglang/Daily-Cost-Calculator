@@ -2,7 +2,7 @@
 setlocal
 
 set "APP_NAME=DailyCostCalculator"
-set "APP_VERSION=1.0.2"
+set "APP_VERSION=1.0.3"
 set "DEFAULT_INSTALL_DIR=%APP_NAME%"
 set "D_DAILY_INSTALL_DIR=D:\daily\DailyCostCalculator"
 set "MAIN_JAR=daily-cost-calculator.jar"
@@ -21,28 +21,28 @@ if defined MAVEN_HOME set "PATH=%MAVEN_HOME%\bin;%PATH%"
 if defined WIX_HOME set "PATH=%WIX_HOME%;%PATH%"
 if exist "%~dp0tools\wix\candle.exe" set "PATH=%~dp0tools\wix;%PATH%"
 
-where java >nul 2>nul
+java -version >nul 2>nul
 if errorlevel 1 (
   echo Java 21 not found. Set JAVA_HOME to a JDK 21 installation.
   if not defined NO_PAUSE pause
   exit /b 1
 )
 
-where mvn >nul 2>nul
+mvn -version >nul 2>nul
 if errorlevel 1 (
   echo Maven not found. Install Maven 3.9+ or set MAVEN_HOME.
   if not defined NO_PAUSE pause
   exit /b 1
 )
 
-where jpackage >nul 2>nul
+jpackage --version >nul 2>nul
 if errorlevel 1 (
   echo jpackage not found. Use a full JDK 21, not a JRE.
   if not defined NO_PAUSE pause
   exit /b 1
 )
 
-where candle.exe >nul 2>nul
+candle.exe -? >nul 2>nul
 if errorlevel 1 (
   echo WiX 3.x not found. Install WiX Toolset 3.x and add it to PATH, or set WIX_HOME.
   echo Download: https://wixtoolset.org/docs/wix3/

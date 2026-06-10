@@ -210,6 +210,22 @@
     -fx-text-fill: -app-text;
 }
 
+.combo-box-popup .list-view {
+    -fx-background-color: -app-surface;
+    -fx-border-color: -app-border;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: -app-surface;
+    -fx-text-fill: -app-text;
+}
+
+.combo-box-popup .list-view .list-cell:hover,
+.combo-box-popup .list-view .list-cell:selected {
+    -fx-background-color: -app-primary;
+    -fx-text-fill: white;
+}
+
 .check-box {
     -fx-text-fill: -app-text;
 }
@@ -229,8 +245,26 @@
     -fx-text-fill: -app-text;
 }
 
+.axis,
+.axis-tick-mark,
+.axis-minor-tick-mark,
+.chart-vertical-grid-lines,
+.chart-horizontal-grid-lines {
+    -fx-stroke: -app-border;
+}
+
+.chart .text,
+.chart-content .text,
+.axis Text,
+.chart-legend-item-symbol + Label,
+.chart-pie-label {
+    -fx-fill: -app-text;
+    -fx-text-fill: -app-text;
+}
+
 .chart-legend {
     -fx-background-color: -app-surface;
+    -fx-border-color: -app-border;
 }
 
 .chart-legend-item {

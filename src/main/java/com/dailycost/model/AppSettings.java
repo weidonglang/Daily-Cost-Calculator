@@ -9,6 +9,8 @@ public class AppSettings {
     private String themeName;
     private BigDecimal defaultTargetDailyCost;
     private int saveFormatVersion;
+    private String lastAiAnalysis;
+    private String lastAiAnalysisAt;
 
     public AppSettings() {
         this.themeName = THEME_DARK_PURPLE;
@@ -38,5 +40,21 @@ public class AppSettings {
 
     public void setSaveFormatVersion(int saveFormatVersion) {
         this.saveFormatVersion = saveFormatVersion;
+    }
+
+    public String getLastAiAnalysis() {
+        return lastAiAnalysis == null ? "" : lastAiAnalysis;
+    }
+
+    public void setLastAiAnalysis(String lastAiAnalysis) {
+        this.lastAiAnalysis = lastAiAnalysis == null ? "" : lastAiAnalysis;
+    }
+
+    public String getLastAiAnalysisAt() {
+        return lastAiAnalysisAt == null ? "" : lastAiAnalysisAt;
+    }
+
+    public void setLastAiAnalysisAt(String lastAiAnalysisAt) {
+        this.lastAiAnalysisAt = lastAiAnalysisAt == null ? "" : lastAiAnalysisAt;
     }
 }
