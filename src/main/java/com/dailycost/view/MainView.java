@@ -568,8 +568,14 @@ public class MainView {
         }));
         Button target = secondaryButton("设置目标");
         target.setOnAction(event -> showTargetDialog(device));
+        Button deviceAi = secondaryButton("AI 分析此设备");
+        deviceAi.setOnAction(event -> runAiAnalysis(
+                deviceAi,
+                OllamaAnalysisService.AnalysisFocus.SINGLE_DEVICE,
+                List.of(snapshot)
+        ));
 
-        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, target);
+        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, target, deviceAi);
         actions.setAlignment(Pos.CENTER_LEFT);
         VBox card = new VBox(10, name, summary, accessories, actions);
         card.getStyleClass().add("device-card");
@@ -959,7 +965,7 @@ public class MainView {
         task.setOnSucceeded(event -> {
             String result = formatAiOutput(task.getValue());
             String timestamp = FormatUtil.date(LocalDate.now()) + " " + java.time.LocalTime.now().withNano(0);
-            appData.getSettings().setLastAiAnalysis(result);
+            appData.getSettings().setLastAiAnalysis("[" + focus.title() + "]" + System.lineSeparator() + result);
             appData.getSettings().setLastAiAnalysisAt(timestamp);
             try {
                 dataStore.save(appData);
