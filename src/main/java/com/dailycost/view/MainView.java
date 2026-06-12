@@ -92,6 +92,7 @@ public class MainView {
     private final OllamaAnalysisService ollamaService = new OllamaAnalysisService();
     private final TargetPlanService targetPlanService = new TargetPlanService();
     private final BorderPane root = new BorderPane();
+    private final TabPane tabs = new TabPane();
     private final HBox statsBar = new HBox(12);
     private final TableView<DeviceCostSnapshot> overviewTable = new TableView<>();
     private final TableView<DeviceCostSnapshot> targetTable = new TableView<>();
@@ -108,6 +109,7 @@ public class MainView {
     private final TextArea aiAnalysis = new TextArea();
     private final TextField ollamaEndpoint = new TextField(OllamaAnalysisService.DEFAULT_ENDPOINT);
     private final TextField ollamaModel = new TextField(OllamaAnalysisService.DEFAULT_MODEL);
+    private Tab statisticsTab;
     private Scene scene;
 
     public MainView(AppData appData, JsonDataStore dataStore) {
@@ -174,10 +176,10 @@ public class MainView {
     }
 
     private Node buildTabs() {
-        TabPane tabs = new TabPane();
+        statisticsTab = new Tab("统计分析", buildStatisticsTab());
         tabs.getTabs().add(new Tab("设备总览", buildOverviewTab()));
         tabs.getTabs().add(new Tab("目标换新", buildTargetTab()));
-        tabs.getTabs().add(new Tab("统计分析", buildStatisticsTab()));
+        tabs.getTabs().add(statisticsTab);
         tabs.getTabs().add(new Tab("模型图表", buildChartsTab()));
         tabs.getTabs().add(new Tab("导入导出", buildImportExportTab()));
         tabs.getTabs().forEach(tab -> tab.setClosable(false));
@@ -300,7 +302,9 @@ public class MainView {
     }
 
     private void configureOverviewTable() {
-        setupTable(overviewTable, 360,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
+        setupTable(overviewTable, 360,
+                column("状态", this::deviceStatusText),
+                column("设备", DeviceCostSnapshot::name),
                 column("总投入", s -> FormatUtil.yuan(s.totalInvestment())),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
                 column("目标", s -> FormatUtil.yuanPerDay(s.targetDailyCost())),
@@ -312,7 +316,9 @@ public class MainView {
     }
 
     private void configureTargetTable() {
-        setupTable(targetTable, 520,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
+        setupTable(targetTable, 520,
+                column("状态", this::deviceStatusText),
+                column("设备", DeviceCostSnapshot::name),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
                 column("目标日均", s -> FormatUtil.yuanPerDay(s.targetDailyCost())),
                 column("还需多久", s -> s.targetPlan().achieved() ? "已达成" : FormatUtil.money(s.targetPlan().remainingDays()) + " 天"),
@@ -324,7 +330,9 @@ public class MainView {
     }
 
     private void configureModelTable() {
-        setupTable(modelTable, 360,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
+        setupTable(modelTable, 360,
+                column("状态", this::deviceStatusText),
+                column("设备", DeviceCostSnapshot::name),
                 column("总投入", s -> FormatUtil.yuan(s.totalInvestment())),
                 column("加权使用", s -> FormatUtil.money(s.weightedUsedDays()) + " 天"),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
@@ -1114,6 +1122,9 @@ public class MainView {
     private void runAiAnalysis(Button button, OllamaAnalysisService.AnalysisFocus focus, List<DeviceCostSnapshot> selectedDevices) {
         SummarySnapshot summary = calculatorService.calculateSummary(appData, LocalDate.now());
         button.setDisable(true);
+        if (statisticsTab != null) {
+            tabs.getSelectionModel().select(statisticsTab);
+        }
         aiAnalysis.setText("正在调用本地 Ollama，请稍候...");
 
         Task<String> task = new Task<>() {
