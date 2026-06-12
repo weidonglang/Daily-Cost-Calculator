@@ -70,6 +70,24 @@ class DailyCostCalculatorServiceTest {
     }
 
     @Test
+    void replacedDeviceKeepsInvestmentButIsExcludedFromActiveDailyCost() {
+        AppData appData = new AppData();
+        Device active = new Device("Active", new BigDecimal("1000"), LocalDate.of(2026, 6, 1), BigDecimal.TEN);
+        Device replaced = new Device("Old", new BigDecimal("500"), LocalDate.of(2026, 6, 6), BigDecimal.TEN);
+        replaced.setReplaced(true);
+        replaced.setReplacementDate(today);
+        appData.getDevices().add(active);
+        appData.getDevices().add(replaced);
+
+        SummarySnapshot summary = service.calculateSummary(appData, today);
+
+        assertDecimalEquals("1500", summary.totalInvestment());
+        assertDecimalEquals("100.0000000000", summary.totalDailyCost());
+        assertEquals(0, summary.achievedTargetCount());
+        assertTrue(summary.devices().stream().anyMatch(DeviceCostSnapshot::replaced));
+    }
+
+    @Test
     void calculateTargetPlanDateAndRemainingDays() {
         Device device = new Device("Phone", new BigDecimal("1000"), LocalDate.of(2026, 6, 1), new BigDecimal("10"));
         DeviceCostSnapshot snapshot = service.calculateDevice(device, today);

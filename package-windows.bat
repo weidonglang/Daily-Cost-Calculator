@@ -2,7 +2,7 @@
 setlocal
 
 set "APP_NAME=DailyCostCalculator"
-set "APP_VERSION=1.0.4"
+set "APP_VERSION=1.0.5"
 set "DEFAULT_INSTALL_DIR=%APP_NAME%"
 set "D_DAILY_INSTALL_DIR=D:\daily\DailyCostCalculator"
 set "MAIN_JAR=daily-cost-calculator.jar"

@@ -405,7 +405,7 @@ public class MainView {
 
     private void refreshAnalysis(SummarySnapshot summary) {
         TilePane cards = new TilePane(12, 12,
-                plainStat("总资产摊销", FormatUtil.yuanPerDay(summary.totalDailyCost())),
+                plainStat("30天平滑摊销", FormatUtil.yuanPerDay(activeProjectedPortfolioDaily(summary, 30))),
                 plainStat("平均加权使用", averageWeightedDays(summary) + " 天"),
                 plainStat("目标达成率", summary.achievedTargetCount() + "/" + summary.deviceCount())
         );
@@ -1233,6 +1233,7 @@ public class MainView {
 
     private BigDecimal totalThirtyDayDecrease(SummarySnapshot summary) {
         return summary.devices().stream()
+                .filter(device -> !device.replaced())
                 .map(device -> device.targetPlan().thirtyDayDecrease())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -1281,11 +1282,15 @@ public class MainView {
     }
 
     private String riskAdvice(SummarySnapshot summary) {
-        DeviceCostSnapshot highestDaily = summary.devices().stream()
+        List<DeviceCostSnapshot> activeDevices = activeDevices(summary);
+        if (activeDevices.isEmpty()) {
+            return "当前没有使用中的设备，历史记录不会计入活跃组合日均。";
+        }
+        DeviceCostSnapshot highestDaily = activeDevices.stream()
                 .max(Comparator.comparing(DeviceCostSnapshot::currentDailyCost))
                 .orElseThrow();
         String highestDailyRatio = percent(highestDaily.currentDailyCost(), summary.totalDailyCost());
-        long notAchieved = summary.devices().stream().filter(device -> !device.targetPlan().achieved()).count();
+        long notAchieved = activeDevices.stream().filter(device -> !device.targetPlan().achieved()).count();
         if (highestDaily.currentDailyCost().multiply(new BigDecimal("100"))
                 .compareTo(summary.totalDailyCost().multiply(new BigDecimal("35"))) >= 0) {
             return highestDaily.name() + " 当前日均占比 " + highestDailyRatio + "，组合成本集中度偏高；仍有 "
@@ -1295,7 +1300,7 @@ public class MainView {
     }
 
     private String replacementAdvice(SummarySnapshot summary) {
-        return summary.devices().stream()
+        return activeDevices(summary).stream()
                 .filter(device -> !device.targetPlan().achieved())
                 .max(Comparator.comparing(device -> device.targetPlan().replacementIndex()))
                 .map(device -> device.name() + " 的换新指数最高，为 " + device.targetPlan().replacementIndex()
@@ -1304,29 +1309,38 @@ public class MainView {
     }
 
     private String buildAnalysisText(SummarySnapshot summary) {
-        if (summary.devices().isEmpty()) {
-            return "暂无设备数据。";
+        List<DeviceCostSnapshot> activeDevices = activeDevices(summary);
+        if (activeDevices.isEmpty()) {
+            return summary.devices().isEmpty() ? "暂无设备数据。" : "当前没有使用中的设备，已换新设备仅保留为历史记录。";
         }
-        DeviceCostSnapshot highestDaily = summary.devices().stream().max(Comparator.comparing(DeviceCostSnapshot::currentDailyCost)).orElseThrow();
+        DeviceCostSnapshot highestDaily = activeDevices.stream().max(Comparator.comparing(DeviceCostSnapshot::currentDailyCost)).orElseThrow();
         DeviceCostSnapshot highestInvestment = summary.devices().stream().max(Comparator.comparing(DeviceCostSnapshot::totalInvestment)).orElseThrow();
         String dailyPercent = percent(highestDaily.currentDailyCost(), summary.totalDailyCost());
         String investmentPercent = percent(highestInvestment.totalInvestment(), summary.totalInvestment());
-        BigDecimal thirtyDayDecrease = summary.devices().stream()
+        BigDecimal thirtyDayDecrease = activeDevices.stream()
                 .map(device -> device.targetPlan().thirtyDayDecrease())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return """
-                当前日均最高的是“%s”：%s，占全部设备日均的 %s。
+                当前活跃日均最高的是“%s”：%s，占活跃设备日均的 %s。
 
                 累计投入最高的是“%s”：%s，占总投入的 %s。
 
-                如果未来 30 天不新增设备/配件，组合合计日均预计自然下降约 %s。
+                如果未来 30 天不新增设备/配件，活跃组合日均预计自然下降约 %s；30 天平滑日均约 %s。
 
-                当前组合的等效年化使用成本约 %s，可用于和“每年换新预算”做对比。
+                当前活跃组合的即时年化摊销约 %s，30 天平滑月摊约 %s；后者更适合避免当天新购设备造成的短期峰值。
                 """.formatted(
                 highestDaily.name(), FormatUtil.yuanPerDay(highestDaily.currentDailyCost()), dailyPercent,
                 highestInvestment.name(), FormatUtil.yuan(highestInvestment.totalInvestment()), investmentPercent,
-                FormatUtil.yuanPerDay(thirtyDayDecrease), FormatUtil.yuan(summary.equivalentAnnualCost())
+                FormatUtil.yuanPerDay(thirtyDayDecrease), FormatUtil.yuanPerDay(activeProjectedPortfolioDaily(summary, 30)),
+                FormatUtil.yuan(summary.equivalentAnnualCost()),
+                FormatUtil.yuan(activeProjectedPortfolioDaily(summary, 30).multiply(new BigDecimal("30.4167")))
         );
+    }
+
+    private List<DeviceCostSnapshot> activeDevices(SummarySnapshot summary) {
+        return summary.devices().stream()
+                .filter(device -> !device.replaced())
+                .toList();
     }
 
     private String percent(BigDecimal part, BigDecimal total) {

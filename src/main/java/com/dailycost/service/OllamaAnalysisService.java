@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -98,19 +100,27 @@ public class OllamaAnalysisService {
         builder.append("4. 低换新指数表示当前仍高于目标、还需要时间摊薄；不能因为指数低就直接建议立即换新。\n");
         builder.append("5. 还需天数表示继续持有并使用时，预计达到目标日均还需要的天数。\n");
         builder.append("6. 是否换新要结合：是否已达目标、剩余天数、当前体验、是否刚购买、是否有替代需求。缺少体验数据时只能建议观察或继续摊薄。\n\n");
+        builder.append("7. 已换新设备是历史记录，不计入当前活跃组合日均；分析时不要把它当成仍在使用的风险来源。\n");
+        builder.append("8. 当前日均可能因当天新购被短期拉高；稳定预算判断优先参考30天平滑日均和30天平滑月摊。\n\n");
+
+        BigDecimal smoothDaily30 = projectedPortfolioDaily(summary, 30);
 
         builder.append("总体数据：\n");
         builder.append("- 设备数：").append(summary.deviceCount()).append('\n');
+        builder.append("- 使用中设备数：").append(summary.devices().stream().filter(device -> !device.replaced()).count()).append('\n');
         builder.append("- 配件数：").append(summary.accessoryCount()).append('\n');
         builder.append("- 累计投入：").append(FormatUtil.yuan(summary.totalInvestment())).append('\n');
-        builder.append("- 当前合计日均：").append(FormatUtil.yuanPerDay(summary.totalDailyCost())).append('\n');
-        builder.append("- 等效月摊销：").append(FormatUtil.yuan(summary.equivalentMonthlyCost())).append('\n');
+        builder.append("- 当前活跃合计日均：").append(FormatUtil.yuanPerDay(summary.totalDailyCost())).append('\n');
+        builder.append("- 30天平滑日均：").append(FormatUtil.yuanPerDay(smoothDaily30)).append('\n');
+        builder.append("- 30天平滑月摊：").append(FormatUtil.yuan(smoothDaily30.multiply(new BigDecimal("30.4167")))).append('\n');
+        builder.append("- 即时等效月摊销：").append(FormatUtil.yuan(summary.equivalentMonthlyCost())).append('\n');
         builder.append("- 等效年摊销：").append(FormatUtil.yuan(summary.equivalentAnnualCost())).append('\n');
         builder.append("- 达成目标：").append(summary.achievedTargetCount()).append('/').append(summary.deviceCount()).append("\n\n");
 
         builder.append("设备明细：\n");
         for (DeviceCostSnapshot device : devices) {
             builder.append("- ").append(device.name())
+                    .append("；状态=").append(device.replaced() ? "已换新" : "使用中")
                     .append("；总投入=").append(FormatUtil.yuan(device.totalInvestment()))
                     .append("；当前日均=").append(FormatUtil.yuanPerDay(device.currentDailyCost()))
                     .append("；目标日均=").append(FormatUtil.yuanPerDay(device.targetDailyCost()))
@@ -130,6 +140,8 @@ public class OllamaAnalysisService {
         builder.append("- 每个小节使用“1. 总体判断：”这种标题，每条建议单独换行。\n");
         builder.append("- 不要说“30天可节省X元/天”，只能说“继续持有30天后日均预计自然下降X元/天”。\n");
         builder.append("- 不要把低换新指数解释为必须立即替换；应解释为距离目标日均还远。\n");
+        builder.append("- 已换新设备只可作为历史记录说明，不要纳入当前活跃组合风险排序。\n");
+        builder.append("- 当即时日均和30天平滑日均差异很大时，明确说明这是新购设备带来的短期摊销峰值。\n");
         builder.append("- 必须把建议分成：继续持有摊薄、观察、考虑换新、已达标可自由决策。\n");
         builder.append("- 如果缺少设备体验、故障、出售价格、真实预算信息，不要假设这些信息。\n");
         builder.append("- 重点输出可执行建议，不要使用“成本失控”“严重预算风险”等夸张措辞，除非数据本身能证明真实现金流风险。\n\n");
@@ -141,6 +153,26 @@ public class OllamaAnalysisService {
         builder.append("4. 未来30/90/365天：只能描述自然摊薄趋势和复查节点。\n");
         builder.append("5. 预算建议：基于当前投入和目标日均，给出保守建议。\n");
         return builder.toString();
+    }
+
+    private BigDecimal projectedPortfolioDaily(SummarySnapshot summary, int extraDays) {
+        return summary.devices().stream()
+                .filter(device -> !device.replaced())
+                .map(device -> projectedDeviceDaily(device, extraDays))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal projectedDeviceDaily(DeviceCostSnapshot device, int extraDays) {
+        BigDecimal total = divideByDays(device.basePrice(), device.baseUsedDays() + extraDays);
+        return device.accessories().stream()
+                .map(accessory -> divideByDays(accessory.price(), accessory.usedDays() + extraDays))
+                .reduce(total, BigDecimal::add);
+    }
+
+    private BigDecimal divideByDays(BigDecimal amount, long days) {
+        BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
+        long safeDays = Math.max(1, days);
+        return safeAmount.divide(BigDecimal.valueOf(safeDays), 10, RoundingMode.HALF_UP);
     }
 
     private String normalizeEndpoint(String endpoint) {
