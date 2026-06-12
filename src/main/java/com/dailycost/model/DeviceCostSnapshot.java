@@ -18,6 +18,8 @@ public record DeviceCostSnapshot(
         BigDecimal weightedUsedDays,
         BigDecimal targetDailyCost,
         TargetPlanSnapshot targetPlan,
+        boolean replaced,
+        LocalDate replacementDate,
         List<AccessoryCostSnapshot> accessories
 ) {
 }

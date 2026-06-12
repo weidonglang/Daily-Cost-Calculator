@@ -14,6 +14,8 @@ public class Device {
     private LocalDate purchaseDate;
     private BigDecimal targetDailyCost;
     private List<Accessory> accessories;
+    private boolean replaced;
+    private LocalDate replacementDate;
     private int sortOrder;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -25,6 +27,7 @@ public class Device {
         this.purchaseDate = LocalDate.now();
         this.targetDailyCost = BigDecimal.TEN;
         this.accessories = new ArrayList<>();
+        this.replaced = false;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
     }
@@ -86,6 +89,22 @@ public class Device {
 
     public void setAccessories(List<Accessory> accessories) {
         this.accessories = accessories == null ? new ArrayList<>() : accessories;
+    }
+
+    public boolean isReplaced() {
+        return replaced;
+    }
+
+    public void setReplaced(boolean replaced) {
+        this.replaced = replaced;
+    }
+
+    public LocalDate getReplacementDate() {
+        return replacementDate;
+    }
+
+    public void setReplacementDate(LocalDate replacementDate) {
+        this.replacementDate = replacementDate;
     }
 
     public int getSortOrder() {

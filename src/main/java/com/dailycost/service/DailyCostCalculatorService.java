@@ -51,14 +51,15 @@ public class DailyCostCalculatorService {
     }
 
     public DeviceCostSnapshot calculateDevice(Device device, LocalDate currentDate) {
-        long baseUsedDays = calculateUsedDays(device.getPurchaseDate(), currentDate);
+        LocalDate effectiveDate = effectiveDate(device, currentDate);
+        long baseUsedDays = calculateUsedDays(device.getPurchaseDate(), effectiveDate);
         BigDecimal baseDailyCost = calculateDailyCost(device.getBasePrice(), baseUsedDays);
 
         List<AccessoryCostSnapshot> accessorySnapshots = new ArrayList<>();
         BigDecimal accessoriesInvestment = BigDecimal.ZERO;
         BigDecimal accessoriesDailyCost = BigDecimal.ZERO;
         for (Accessory accessory : device.getAccessories()) {
-            AccessoryCostSnapshot snapshot = calculateAccessory(accessory, currentDate);
+            AccessoryCostSnapshot snapshot = calculateAccessory(accessory, effectiveDate);
             accessorySnapshots.add(snapshot);
             accessoriesInvestment = accessoriesInvestment.add(snapshot.price());
             accessoriesDailyCost = accessoriesDailyCost.add(snapshot.dailyCost());
@@ -72,7 +73,7 @@ public class DailyCostCalculatorService {
                 currentDailyCost,
                 weightedUsedDays,
                 device.getTargetDailyCost(),
-                currentDate
+                effectiveDate
         );
 
         return new DeviceCostSnapshot(
@@ -89,8 +90,19 @@ public class DailyCostCalculatorService {
                 weightedUsedDays,
                 device.getTargetDailyCost(),
                 targetPlan,
+                device.isReplaced(),
+                device.getReplacementDate(),
                 List.copyOf(accessorySnapshots)
         );
+    }
+
+    private LocalDate effectiveDate(Device device, LocalDate currentDate) {
+        LocalDate safeCurrentDate = currentDate == null ? LocalDate.now() : currentDate;
+        if (!device.isReplaced()) {
+            return safeCurrentDate;
+        }
+        LocalDate replacementDate = device.getReplacementDate() == null ? safeCurrentDate : device.getReplacementDate();
+        return replacementDate.isAfter(safeCurrentDate) ? safeCurrentDate : replacementDate;
     }
 
     public TargetPlanSnapshot calculateTargetPlan(
@@ -142,9 +154,11 @@ public class DailyCostCalculatorService {
         int achievedTargetCount = 0;
         for (DeviceCostSnapshot device : devices) {
             totalInvestment = totalInvestment.add(device.totalInvestment());
-            totalDailyCost = totalDailyCost.add(device.currentDailyCost());
+            if (!device.replaced()) {
+                totalDailyCost = totalDailyCost.add(device.currentDailyCost());
+            }
             accessoryCount += device.accessories().size();
-            if (device.targetPlan().achieved()) {
+            if (!device.replaced() && device.targetPlan().achieved()) {
                 achievedTargetCount++;
             }
         }

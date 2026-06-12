@@ -298,8 +298,7 @@ public class MainView {
     }
 
     private void configureOverviewTable() {
-        setupTable(overviewTable, 360,
-                column("设备", DeviceCostSnapshot::name),
+        setupTable(overviewTable, 360,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
                 column("总投入", s -> FormatUtil.yuan(s.totalInvestment())),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
                 column("目标", s -> FormatUtil.yuanPerDay(s.targetDailyCost())),
@@ -311,8 +310,7 @@ public class MainView {
     }
 
     private void configureTargetTable() {
-        setupTable(targetTable, 520,
-                column("设备", DeviceCostSnapshot::name),
+        setupTable(targetTable, 520,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
                 column("目标日均", s -> FormatUtil.yuanPerDay(s.targetDailyCost())),
                 column("还需多久", s -> s.targetPlan().achieved() ? "已达成" : FormatUtil.money(s.targetPlan().remainingDays()) + " 天"),
@@ -324,8 +322,7 @@ public class MainView {
     }
 
     private void configureModelTable() {
-        setupTable(modelTable, 360,
-                column("设备", DeviceCostSnapshot::name),
+        setupTable(modelTable, 360,`r`n                column("状态", this::deviceStatusText),`r`n                column("设备", DeviceCostSnapshot::name),
                 column("总投入", s -> FormatUtil.yuan(s.totalInvestment())),
                 column("加权使用", s -> FormatUtil.money(s.weightedUsedDays()) + " 天"),
                 column("当前日均", s -> FormatUtil.yuanPerDay(s.currentDailyCost())),
@@ -348,6 +345,12 @@ public class MainView {
         return column;
     }
 
+    private String deviceStatusText(DeviceCostSnapshot snapshot) {
+        return snapshot.replaced()
+                ? "已换新 " + FormatUtil.date(snapshot.replacementDate())
+                : "使用中";
+    }
+
     private void refresh() {
         appData.getDevices().sort(Comparator.comparingInt(Device::getSortOrder));
         SummarySnapshot summary = calculatorService.calculateSummary(appData, LocalDate.now());
@@ -362,12 +365,14 @@ public class MainView {
     }
 
     private void refreshStats(SummarySnapshot summary) {
+        BigDecimal smoothDaily30 = activeProjectedPortfolioDaily(summary, 30);
         statsBar.getChildren().setAll(
                 statCard("设备", summary.deviceCount() + " 台"),
                 statCard("配件", summary.accessoryCount() + " 个"),
                 statCard("累计投入", FormatUtil.yuan(summary.totalInvestment())),
-                statCard("合计日均", FormatUtil.yuanPerDay(summary.totalDailyCost())),
-                statCard("等效月租", FormatUtil.yuan(summary.equivalentMonthlyCost()) + "/月"),
+                statCard("当前活跃日均", FormatUtil.yuanPerDay(summary.totalDailyCost())),
+                statCard("30天平滑日均", FormatUtil.yuanPerDay(smoothDaily30)),
+                statCard("平滑月摊", FormatUtil.yuan(smoothDaily30.multiply(new BigDecimal("30.4167"))) + "/月"),
                 statCard("达成目标", summary.achievedTargetCount() + " 台")
         );
     }
@@ -570,6 +575,8 @@ public class MainView {
         batchAccessory.setOnAction(event -> showBatchAccessoryDialog(device));
         Button target = secondaryButton("设置目标");
         target.setOnAction(event -> showTargetDialog(device));
+        Button replacement = device.isReplaced() ? secondaryButton("恢复使用") : dangerButton("标记已换新");
+        replacement.setOnAction(event -> toggleReplacement(device));
         Button deviceAi = secondaryButton("AI 分析此设备");
         deviceAi.setOnAction(event -> runAiAnalysis(
                 deviceAi,
@@ -577,7 +584,7 @@ public class MainView {
                 List.of(snapshot)
         ));
 
-        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, batchAccessory, target, deviceAi);
+        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, batchAccessory, target, replacement, deviceAi);
         actions.setAlignment(Pos.CENTER_LEFT);
         VBox card = new VBox(10, name, summary, accessories, actions);
         card.getStyleClass().add("device-card");
@@ -1162,8 +1169,13 @@ public class MainView {
 
     private BigDecimal projectedPortfolioDaily(SummarySnapshot summary, int extraDays) {
         return summary.devices().stream()
+                .filter(device -> !device.replaced())
                 .map(device -> projectedDeviceDaily(device, extraDays))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal activeProjectedPortfolioDaily(SummarySnapshot summary, int extraDays) {
+        return projectedPortfolioDaily(summary, extraDays);
     }
 
     private String historicalChangeText(int daysAgo) {
@@ -1176,6 +1188,9 @@ public class MainView {
     }
 
     private BigDecimal projectedDeviceDaily(DeviceCostSnapshot device, int extraDays) {
+        if (device.replaced()) {
+            return device.currentDailyCost();
+        }
         BigDecimal total = divideByDays(device.basePrice(), device.baseUsedDays() + extraDays);
         for (AccessoryCostSnapshot accessory : device.accessories()) {
             total = total.add(divideByDays(accessory.price(), accessory.usedDays() + extraDays));
@@ -1335,6 +1350,24 @@ public class MainView {
         saveAndRefresh();
     }
 
+    private void toggleReplacement(Device device) {
+        if (device.isReplaced()) {
+            if (!confirm("恢复使用", "确认将“" + device.getName() + "”恢复为使用中？")) {
+                return;
+            }
+            device.setReplaced(false);
+            device.setReplacementDate(null);
+        } else {
+            if (!confirm("标记已换新", "确认将“" + device.getName() + "”标记为已换新？标记后它会保留记录，但不再计入当前活跃日均。")) {
+                return;
+            }
+            device.setReplaced(true);
+            device.setReplacementDate(LocalDate.now());
+        }
+        device.setUpdatedAt(LocalDateTime.now());
+        saveAndRefresh();
+    }
+
     private void normalizeSortOrder() {
         for (int i = 0; i < appData.getDevices().size(); i++) {
             appData.getDevices().get(i).setSortOrder(i);
@@ -1358,6 +1391,8 @@ public class MainView {
         target.setPurchaseDate(source.getPurchaseDate());
         target.setTargetDailyCost(source.getTargetDailyCost());
         target.setAccessories(source.getAccessories());
+        target.setReplaced(source.isReplaced());
+        target.setReplacementDate(source.getReplacementDate());
         target.setSortOrder(source.getSortOrder());
         target.setCreatedAt(source.getCreatedAt());
         target.setUpdatedAt(source.getUpdatedAt());
