@@ -230,12 +230,16 @@ public class MainView {
         ollamaEndpoint.setPrefWidth(240);
         ollamaModel.setPrefWidth(130);
 
-        Button aiButton = primaryButton("AI 辅助分析");
-        aiButton.setOnAction(event -> runAiAnalysis(aiButton));
+        Button aiButton = primaryButton("整体分析");
+        aiButton.setOnAction(event -> runAiAnalysis(aiButton, OllamaAnalysisService.AnalysisFocus.OVERALL, null));
+        Button targetAi = secondaryButton("目标换新分析");
+        targetAi.setOnAction(event -> runAiAnalysis(targetAi, OllamaAnalysisService.AnalysisFocus.REPLACEMENT, null));
+        Button budgetAi = secondaryButton("预算风险分析");
+        budgetAi.setOnAction(event -> runAiAnalysis(budgetAi, OllamaAnalysisService.AnalysisFocus.BUDGET, null));
         Button copyAi = secondaryButton("复制分析结果");
         copyAi.setOnAction(event -> copyToClipboard(aiAnalysis.getText()));
 
-        HBox aiControls = new HBox(10, new Label("Ollama"), ollamaEndpoint, new Label("模型"), ollamaModel, aiButton, copyAi);
+        HBox aiControls = new HBox(10, new Label("Ollama"), ollamaEndpoint, new Label("模型"), ollamaModel, aiButton, targetAi, budgetAi, copyAi);
         aiControls.setAlignment(Pos.CENTER_LEFT);
         VBox aiBox = new VBox(10, titleLabel("本地 AI 分析"), aiControls, aiAnalysis);
         aiBox.getStyleClass().add("device-card");
@@ -935,7 +939,7 @@ public class MainView {
         return getClass().getResource(path).toExternalForm();
     }
 
-    private void runAiAnalysis(Button button) {
+    private void runAiAnalysis(Button button, OllamaAnalysisService.AnalysisFocus focus, List<DeviceCostSnapshot> selectedDevices) {
         SummarySnapshot summary = calculatorService.calculateSummary(appData, LocalDate.now());
         button.setDisable(true);
         aiAnalysis.setText("正在调用本地 Ollama，请稍候...");
@@ -943,7 +947,7 @@ public class MainView {
         Task<String> task = new Task<>() {
             @Override
             protected String call() {
-                return ollamaService.analyze(ollamaEndpoint.getText(), ollamaModel.getText(), summary);
+                return ollamaService.analyze(ollamaEndpoint.getText(), ollamaModel.getText(), summary, focus, selectedDevices);
             }
         };
         task.setOnSucceeded(event -> {
