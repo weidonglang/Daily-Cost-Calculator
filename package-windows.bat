@@ -2,7 +2,7 @@
 setlocal
 
 set "APP_NAME=DailyCostCalculator"
-set "APP_VERSION=1.0.3"
+set "APP_VERSION=1.0.4"
 set "DEFAULT_INSTALL_DIR=%APP_NAME%"
 set "D_DAILY_INSTALL_DIR=D:\daily\DailyCostCalculator"
 set "MAIN_JAR=daily-cost-calculator.jar"
@@ -28,7 +28,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-mvn -version >nul 2>nul
+call mvn -version >nul 2>nul
 if errorlevel 1 (
   echo Maven not found. Install Maven 3.9+ or set MAVEN_HOME.
   if not defined NO_PAUSE pause

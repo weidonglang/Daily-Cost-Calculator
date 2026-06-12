@@ -560,12 +560,14 @@ public class MainView {
         up.setOnAction(event -> moveDevice(device, -1));
         Button down = secondaryButton("下移");
         down.setOnAction(event -> moveDevice(device, 1));
-        Button addAccessory = secondaryButton("+ 添加一次性附属配件");
+        Button addAccessory = secondaryButton("+ 添加附件");
         addAccessory.setOnAction(event -> showAccessoryDialog(device, null).ifPresent(accessory -> {
             device.getAccessories().add(accessory);
             device.setUpdatedAt(LocalDateTime.now());
             saveAndRefresh();
         }));
+        Button batchAccessory = secondaryButton("批量附件");
+        batchAccessory.setOnAction(event -> showBatchAccessoryDialog(device));
         Button target = secondaryButton("设置目标");
         target.setOnAction(event -> showTargetDialog(device));
         Button deviceAi = secondaryButton("AI 分析此设备");
@@ -575,7 +577,7 @@ public class MainView {
                 List.of(snapshot)
         ));
 
-        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, target, deviceAi);
+        HBox actions = new HBox(8, edit, delete, up, down, addAccessory, batchAccessory, target, deviceAi);
         actions.setAlignment(Pos.CENTER_LEFT);
         VBox card = new VBox(10, name, summary, accessories, actions);
         card.getStyleClass().add("device-card");
@@ -713,6 +715,98 @@ public class MainView {
             return accessory;
         });
         return dialog.showAndWait();
+    }
+
+    private void showBatchAccessoryDialog(Device device) {
+        Dialog<List<Accessory>> dialog = new Dialog<>();
+        dialog.setTitle("批量添加附件");
+        TextArea rows = new TextArea("""
+                手机壳,39,2,2026-06-12
+                钢化膜,15,3,2026-06-12
+                充电器,99,1,2026-06-12
+                """);
+        rows.setPrefRowCount(10);
+        rows.setWrapText(false);
+        CheckBox mergeQuantity = new CheckBox("同类数量合并为一条记录");
+        mergeQuantity.setSelected(true);
+        Label hint = new Label("每行格式：附件名称, 单价, 数量, 购买日期。数量和日期可省略，默认数量 1、日期今天。");
+        hint.setWrapText(true);
+        VBox content = new VBox(8, hint, rows, mergeQuantity);
+        content.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(content);
+        ButtonType ok = new ButtonType("添加", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+        dialog.getDialogPane().lookupButton(ok).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            try {
+                parseBatchAccessories(rows.getText(), mergeQuantity.isSelected());
+            } catch (IllegalArgumentException e) {
+                showError("批量附件格式有误", e.getMessage());
+                event.consume();
+            }
+        });
+        dialog.setResultConverter(type -> type == ok ? parseBatchAccessories(rows.getText(), mergeQuantity.isSelected()) : null);
+        dialog.showAndWait().ifPresent(accessories -> {
+            device.getAccessories().addAll(accessories);
+            device.setUpdatedAt(LocalDateTime.now());
+            saveAndRefresh();
+            showInfo("已添加 " + accessories.size() + " 条附件记录");
+        });
+    }
+
+    private List<Accessory> parseBatchAccessories(String text, boolean mergeQuantity) {
+        List<Accessory> accessories = new ArrayList<>();
+        String[] lines = text == null ? new String[0] : text.split("\\R");
+        int lineNumber = 0;
+        for (String rawLine : lines) {
+            lineNumber++;
+            String line = rawLine.trim();
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.replace('，', ',').split(",");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行至少需要：名称, 单价");
+            }
+            String name = parts[0].trim();
+            String priceText = parts[1].trim();
+            String quantityText = parts.length >= 3 ? parts[2].trim() : "1";
+            String dateText = parts.length >= 4 ? parts[3].trim() : "";
+            if (name.isBlank()) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行附件名称不能为空");
+            }
+            if (!isPositiveDecimal(priceText)) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行单价必须大于 0");
+            }
+            int quantity;
+            try {
+                quantity = quantityText.isBlank() ? 1 : Integer.parseInt(quantityText);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行数量必须是整数");
+            }
+            if (quantity <= 0) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行数量必须大于 0");
+            }
+            LocalDate purchaseDate;
+            try {
+                purchaseDate = dateText.isBlank() ? LocalDate.now() : LocalDate.parse(dateText);
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("第 " + lineNumber + " 行日期必须是 yyyy-MM-dd");
+            }
+            BigDecimal unitPrice = new BigDecimal(priceText);
+            if (mergeQuantity) {
+                String mergedName = quantity > 1 ? name + " x" + quantity : name;
+                accessories.add(new Accessory(mergedName, unitPrice.multiply(BigDecimal.valueOf(quantity)), purchaseDate));
+            } else {
+                for (int i = 1; i <= quantity; i++) {
+                    String itemName = quantity > 1 ? name + " " + i + "/" + quantity : name;
+                    accessories.add(new Accessory(itemName, unitPrice, purchaseDate));
+                }
+            }
+        }
+        if (accessories.isEmpty()) {
+            throw new IllegalArgumentException("请至少填写一行附件");
+        }
+        return accessories;
     }
 
     private void showTargetDialog(Device device) {
