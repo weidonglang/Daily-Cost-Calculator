@@ -449,8 +449,14 @@ public class MainView {
                     .forEach(device -> selectedChartDeviceIds.add(device.id()));
             refreshCharts(calculatorService.calculateSummary(appData, LocalDate.now()));
         });
+        Button chartAi = primaryButton("AI 解读所选设备");
+        chartAi.setOnAction(event -> runAiAnalysis(
+                chartAi,
+                OllamaAnalysisService.AnalysisFocus.CHART_SELECTION,
+                selectedChartDevices(devices)
+        ));
 
-        HBox actions = new HBox(8, all, topThree);
+        HBox actions = new HBox(8, all, topThree, chartAi);
         actions.setAlignment(Pos.CENTER_LEFT);
 
         List<Node> nodes = new ArrayList<>();
