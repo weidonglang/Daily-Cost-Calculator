@@ -431,7 +431,8 @@ public class MainView {
         chartsBox.getChildren().addAll(
                 chartCard("图表设备筛选", chartDeviceFilters),
                 chartCard("日均排行", dailyRankingChart(selectedDevices)),
-                chartCard("投入构成", investmentPieChart(selectedDevices)),
+                chartCard("投入构成饼图", investmentPieChart(selectedDevices)),
+                chartCard("投入排名条形图", investmentBarChart(selectedDevices)),
                 chartCard("目标等待时间", targetWaitingChart(selectedDevices)),
                 chartCard("未来日均曲线", futureDailyLineChart(selectedDevices))
         );
@@ -469,6 +470,15 @@ public class MainView {
         List<Node> nodes = new ArrayList<>();
         nodes.add(new Label("勾选要显示的设备；勾选多个时，未来日均曲线会额外显示组合合计。"));
         nodes.add(actions);
+        if (futureRangeBox.getValue() == null) {
+            futureRangeBox.setValue("365天");
+        }
+        futureRangeBox.setOnAction(event -> refreshCharts(calculatorService.calculateSummary(appData, LocalDate.now())));
+        customFutureDays.setPrefWidth(90);
+        customFutureDays.setOnAction(event -> refreshCharts(calculatorService.calculateSummary(appData, LocalDate.now())));
+        HBox rangeControls = new HBox(8, new Label("未来曲线范围"), futureRangeBox, new Label("自定义天数"), customFutureDays);
+        rangeControls.setAlignment(Pos.CENTER_LEFT);
+        nodes.add(rangeControls);
         for (DeviceCostSnapshot device : devices) {
             CheckBox box = new CheckBox(device.name());
             box.setSelected(selectedChartDeviceIds.contains(device.id()));
@@ -883,6 +893,21 @@ public class MainView {
         return chart;
     }
 
+    private BarChart<Number, String> investmentBarChart(List<DeviceCostSnapshot> devices) {
+        NumberAxis xAxis = new NumberAxis();
+        CategoryAxis yAxis = new CategoryAxis();
+        BarChart<Number, String> chart = new BarChart<>(xAxis, yAxis);
+        styleChart(chart);
+        chart.setLegendVisible(false);
+        XYChart.Series<Number, String> series = new XYChart.Series<>();
+        devices.stream()
+                .sorted(Comparator.comparing(DeviceCostSnapshot::totalInvestment).reversed())
+                .forEach(snapshot -> series.getData().add(new XYChart.Data<>(snapshot.totalInvestment().doubleValue(), snapshot.name())));
+        chart.getData().add(series);
+        chart.setPrefHeight(Math.max(280, devices.size() * 42));
+        return chart;
+    }
+
     private BarChart<Number, String> targetWaitingChart(List<DeviceCostSnapshot> devices) {
         NumberAxis xAxis = new NumberAxis();
         CategoryAxis yAxis = new CategoryAxis();
@@ -904,7 +929,7 @@ public class MainView {
         LineChart<Number, Number> chart = new LineChart<>(xAxis, yAxis);
         styleChart(chart);
         chart.setLegendVisible(true);
-        int[] days = {0, 30, 60, 90, 180, 270, 365};
+        int[] days = futureChartDays();
         for (DeviceCostSnapshot device : devices) {
             XYChart.Series<Number, Number> series = new XYChart.Series<>();
             series.setName(device.name());
@@ -927,6 +952,38 @@ public class MainView {
         }
         chart.setPrefHeight(360);
         return chart;
+    }
+
+    private int[] futureChartDays() {
+        int maxDays = switch (futureRangeBox.getValue() == null ? "365天" : futureRangeBox.getValue()) {
+            case "7天" -> 7;
+            case "30天" -> 30;
+            case "90天" -> 90;
+            case "自定义" -> parseCustomFutureDays();
+            default -> 365;
+        };
+        maxDays = Math.max(1, Math.min(3650, maxDays));
+        if (maxDays <= 7) {
+            return new int[]{0, 1, 2, 3, 4, 5, 6, maxDays};
+        }
+        if (maxDays <= 30) {
+            return new int[]{0, 3, 7, 14, 21, maxDays};
+        }
+        if (maxDays <= 90) {
+            return new int[]{0, 7, 14, 30, 60, maxDays};
+        }
+        if (maxDays <= 365) {
+            return new int[]{0, 30, 60, 90, 180, 270, maxDays};
+        }
+        return new int[]{0, 30, 90, 180, 365, 730, maxDays};
+    }
+
+    private int parseCustomFutureDays() {
+        try {
+            return Integer.parseInt(customFutureDays.getText().trim());
+        } catch (RuntimeException e) {
+            return 365;
+        }
     }
 
     private Node chartCard(String title, Node chart) {
