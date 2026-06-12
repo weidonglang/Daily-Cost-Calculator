@@ -102,6 +102,8 @@ public class MainView {
     private final VBox chartDeviceFilters = new VBox(8);
     private final VBox importExportInfo = new VBox(8);
     private final List<String> selectedChartDeviceIds = new ArrayList<>();
+    private final ComboBox<String> futureRangeBox = new ComboBox<>(FXCollections.observableArrayList("7天", "30天", "90天", "365天", "自定义"));
+    private final TextField customFutureDays = new TextField("365");
     private final TextField batchTarget = new TextField();
     private final TextArea aiAnalysis = new TextArea();
     private final TextField ollamaEndpoint = new TextField(OllamaAnalysisService.DEFAULT_ENDPOINT);
